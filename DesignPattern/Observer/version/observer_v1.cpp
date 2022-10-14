@@ -137,8 +137,8 @@ int main() {
         controller->attach(player);
     }
 
-    players[0]->call(Learning::ConCenter::HELP, controller);
-    players[3]->call(Learning::ConCenter::RESOURCE, controller);
+    playerMap["打野"]->call(Learning::ConCenter::HELP, controller);
+    playerMap["下路"]->call(Learning::ConCenter::RESOURCE, controller);
 
     return 0;
 }
