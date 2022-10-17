@@ -89,7 +89,7 @@ private:
         if(key > this->keyDatas[DEGREE_NUM - 1] && key < this->keyDatas[DEGREE_NUM]) {
             for(int i = DEGREE_NUM; i < KEYMAX_NUM; ++i) {
                 newNode->keyDatas[i - DEGREE_NUM] = this->keyDatas[i];
-                newNode->childrens[i - DEGREE_NUM] = this->childrens[i + 1]; //childI = keyI + 1
+                newNode->childrens[i - DEGREE_NUM] = this->childrens[i]; //childI = keyI + 1
                 newNode->childrens[i - DEGREE_NUM]->parent = newNode;
             }
             // newNode->childrens[DEGREE_NUM + 1] = this->childrens[KEYNUM_MAX];
@@ -225,6 +225,18 @@ public:
         //下一块中, 最小的元素..
         return newNode->keyDatas[0];
     }
+
+    /**
+     * 合并块
+     * 什么情况下要合并? 当删除后数目小于一定数量的时候, 就需要合并了..
+     * 1 10 12  | 33 36  | 39 42  | 45 48  | 51 54  | 57 60  | (end) 比如查找57 会掉入 57,60中
+     */
+    void __deleteData(T data) {
+            //
+    }
+    void __merge(BPTLeafNode<T, DataT> *oldNode) {
+        //
+    }
 };
 
 template<class T, class DataT>
@@ -244,9 +256,12 @@ public:
 
         while(cur != nullptr) {
             if(cur->isLeaf) break;
-            for(; i < cur->keyNum && data < cur->keyDatas[i]; ++i) {};
+            for(; i < cur->keyNum && data >= cur->keyDatas[i]; ++i) {};
+            if(i > 0) i = i - 1; //处理边界
             //interNode = cur;
+            BPTInterNode<T, DataT> *tmp = static_cast<BPTInterNode<T, DataT> *>(cur);
             cur = static_cast<BPTInterNode<T, DataT> *>(cur)->childrens[i];
+            //这里需要增加对边界的处理, 这里有越界的可能!
         }
         
         return static_cast<BPTLeafNode<T, DataT> *>(cur);
@@ -317,8 +332,24 @@ public:
         for(; extremePos < oldLeafNode->keyNum && data < oldLeafNode->keyDatas[extremePos]; ++extremePos);
         if(extremePos < oldLeafNode->keyNum && data == oldLeafNode->keyDatas[extremePos]) return false;
 
-        if(oldLeafNode->keyNum < KEYMAX_NUM)
-            return oldLeafNode->__insert(data);
+        if(oldLeafNode->keyNum < KEYMAX_NUM) {
+            bool res = oldLeafNode->__insert(data);
+            if(data == oldLeafNode->keyDatas[0]) {
+                //需要特殊处理
+                BPTInterNode<T, DataT> *interNode = oldLeafNode->parent;
+                BPTNode<T, DataT> *childNode = oldLeafNode;
+                
+                //更新上层..
+                while(interNode) {
+                    int i = 0;
+                    for(; i < interNode->keyNum && interNode->childrens[i] != childNode; ++i){};
+                    interNode->keyDatas[i] = data;
+                    childNode = interNode;
+                    interNode = interNode->parent;
+                }
+            }
+            return res;
+        }
         
         //如果在某结点的数据, 达到了一定大小, 那么是无法插入的, 需要分裂结点
         BPTLeafNode<T, DataT> *newLeafNode = new BPTLeafNode<T, DataT>;
@@ -327,8 +358,26 @@ public:
         T extremeDataInNewNode = oldLeafNode->__splitBlock(newLeafNode);
 
         //判断是要插入old, 还是new中.. extremeDataInNode为newLeafNode首值..
-        if(data < extremeDataInNewNode)
+        if(data < extremeDataInNewNode) {
             oldLeafNode->__insert(data);
+    
+            // // 这里不会出现边界情况, 因为出现这种需要送到0位置的时候, 其实被送到左兄弟上了
+            // if(data == oldLeafNode->keyDatas[0]) {
+            //     //需要特殊处理
+            //     BPTInterNode<T, DataT> *interNode = oldLeafNode->parent;
+            //     BPTNode<T, DataT> *childNode = oldLeafNode;
+                
+            //     //更新上层..
+            //     while(interNode) {
+            //         int i = 0;
+            //         for(; i < interNode->keyNum && interNode->childrens[i] != childNode; ++i){};
+            //         interNode->keyDatas[i] = data;
+            //         childNode = interNode;
+            //         interNode = interNode->parent;
+            //     }
+            // }
+
+        }
         else
             newLeafNode->__insert(data);
         
@@ -360,6 +409,14 @@ public:
         return res;
         //return parentInterNode->
         //parentInterNode->__insert()
+    }
+
+    bool Remove(T data) {
+        BPTLeafNode<T, DataT> *oldLeafNode = Find(data);
+        if(oldLeafNode == nullptr) return false;
+        oldLeafNode->PrintAll();
+        //TODO: remove
+        return true;
     }
 
 
@@ -431,9 +488,9 @@ int main(int argc, char** argv) {
     tree->Insert(10);
     tree->Insert(12);
 
-    int length = 8;
+    int length = 10;
     if(argc == 2) length = std::stoi(argv[1]);
-    for(int i = 10 + length; i >= 10; --i) {
+    for(int i = 20; i >= 10 + length; --i) {
         tree->Insert(i * 3);
     }
     
@@ -441,5 +498,22 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
     tree->PrintAll();
 
+    std::cout << std::endl;
+    tree->Insert(1); //需要更新边界
+    //tree->Insert(100);
+    tree->PrintTree();
+    std::cout << std::endl;
+    tree->PrintAll();
+
+    tree->Remove(39);
+
     return 0;
 }
+
+/**
+ * 来源：https://blog.csdn.net/weixin_51309915/article/details/122592023
+ * 在来源中有部分错误, 似乎和其它地方对B+树的定义也有出入。最明显就是childrens和keyDatas的关系, 是相等还是差1
+ * 
+ * TODO:
+ * 1. 边界条件的处理需要修复
+*/
